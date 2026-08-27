@@ -1,0 +1,151 @@
+import '../core/api/api_client.dart';
+import '../core/api/api_exception.dart';
+import '../core/api/token_storage.dart';
+import '../core/constants/api_endpoints.dart';
+import '../models/user_model.dart';
+
+class AuthService {
+  final _api = ApiClient.instance;
+
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _api.post(ApiEndpoints.login, data: {
+      'email': email,
+      'password': password,
+    });
+    final accessToken = response['access_token'] ?? response['token'];
+    final refreshToken = response['refresh_token'];
+    if (accessToken == null) {
+      throw ApiException('No token returned from server');
+    }
+    await TokenStorage.saveTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken ?? '',
+    );
+    return response;
+  }
+
+  Future<Map<String, dynamic>> registerCustomer({
+    required String firstName,
+    required String surname,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    final response = await _api.post(ApiEndpoints.registerCustomer, data: {
+      'first_name': firstName,
+      'surname': surname,
+      'email': email,
+      'phone': phone,
+      'password': password,
+    });
+    final accessToken = response['access_token'] ?? response['token'];
+    final refreshToken = response['refresh_token'];
+    if (accessToken != null) {
+      await TokenStorage.saveTokens(
+        accessToken: accessToken,
+        refreshToken: refreshToken ?? '',
+      );
+    }
+    return response;
+  }
+
+  Future<Map<String, dynamic>> registerRider({
+    required String firstName,
+    required String surname,
+    required String email,
+    required String phone,
+    required String password,
+    required String vehicleType,
+    String? referralCode,
+  }) async {
+    final data = {
+      'first_name': firstName,
+      'surname': surname,
+      'email': email,
+      'phone': phone,
+      'password': password,
+      'vehicle_type': vehicleType,
+      if (referralCode != null && referralCode.isNotEmpty)
+        'referral_code': referralCode,
+    };
+    final response = await _api.post(ApiEndpoints.registerRider, data: data);
+    final accessToken = response['access_token'] ?? response['token'];
+    final refreshToken = response['refresh_token'];
+    if (accessToken != null) {
+      await TokenStorage.saveTokens(
+        accessToken: accessToken,
+        refreshToken: refreshToken ?? '',
+      );
+    }
+    return response;
+  }
+
+  Future<Map<String, dynamic>> registerBusiness({
+    required String businessName,
+    required String email,
+    required String phone,
+    required String password,
+    required String address,
+    String? cacNumber,
+  }) async {
+    final response = await _api.post(ApiEndpoints.registerBusiness, data: {
+      'business_name': businessName,
+      'email': email,
+      'phone': phone,
+      'password': password,
+      'address': address,
+      if (cacNumber != null) 'cac_number': cacNumber,
+    });
+    final accessToken = response['access_token'] ?? response['token'];
+    final refreshToken = response['refresh_token'];
+    if (accessToken != null) {
+      await TokenStorage.saveTokens(
+        accessToken: accessToken,
+        refreshToken: refreshToken ?? '',
+      );
+    }
+    return response;
+  }
+
+  Future<UserModel> getMe() async {
+    final response = await _api.get(ApiEndpoints.getMe);
+    final userData = response['user'] ?? response['data'] ?? response;
+    return UserModel.fromJson(userData as Map<String, dynamic>);
+  }
+
+  Future<void> logout() async {
+    try {
+      await _api.post(ApiEndpoints.logout);
+    } catch (_) {}
+    await TokenStorage.clearTokens();
+  }
+
+  Future<void> requestPasswordReset(String email) async {
+    await _api.post(ApiEndpoints.passwordResetRequest, data: {'email': email});
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    await _api.post(ApiEndpoints.passwordResetConfirm, data: {
+      'email': email,
+      'code': code,
+      'new_password': newPassword,
+    });
+  }
+
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _api.put(ApiEndpoints.updatePassword, data: {
+      'current_password': currentPassword,
+      'new_password': newPassword,
+    });
+  }
+}

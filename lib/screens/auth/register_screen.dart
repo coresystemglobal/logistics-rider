@@ -1,0 +1,522 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../core/constants/app_colors.dart';
+import '../../providers/auth_provider.dart';
+
+class RegisterScreen extends ConsumerStatefulWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+  final _pageCtrl = PageController();
+  int _step = 0;
+
+  // Step 1 fields
+  final _firstNameCtrl = TextEditingController();
+  final _surnameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _referralCtrl = TextEditingController();
+  bool _showReferral = false;
+  bool _agreedToTerms = false;
+  bool _obscurePassword = true;
+
+  // Step 2 fields
+  String _vehicleType = 'MOTORCYCLE';
+  final _licenseCtrl = TextEditingController();
+  final _plateCtrl = TextEditingController();
+  String? _licenseFileName;
+  String? _vehicleFileName;
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    _firstNameCtrl.dispose();
+    _surnameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _referralCtrl.dispose();
+    _licenseCtrl.dispose();
+    _plateCtrl.dispose();
+    super.dispose();
+  }
+
+  void _nextStep() {
+    if (_step == 0) {
+      if (!_agreedToTerms) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please agree to the terms to continue')),
+        );
+        return;
+      }
+      _pageCtrl.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    } else {
+      _submit();
+    }
+  }
+
+  Future<void> _submit() async {
+    final notifier = ref.read(authProvider.notifier);
+    await notifier.registerRider(
+      firstName: _firstNameCtrl.text.trim(),
+      surname: _surnameCtrl.text.trim(),
+      phone: _phoneCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+      password: _passwordCtrl.text,
+      vehicleType: _vehicleType,
+      referralCode: _showReferral && _referralCtrl.text.isNotEmpty ? _referralCtrl.text.trim() : null,
+    );
+    if (!mounted) return;
+    final state = ref.read(authProvider);
+    if (state.error == null) {
+      context.go('/pending');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!)));
+    }
+  }
+
+  Future<void> _pickFile(bool isLicense) async {
+    final files = await FilePicker.pickFiles(type: FileType.image);
+    if (files.isNotEmpty) {
+      setState(() {
+        if (isLicense) {
+          _licenseFileName = files.first.name;
+        } else {
+          _vehicleFileName = files.first.name;
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final loading = authState.status == AuthStatus.unknown;
+
+    return Scaffold(
+      backgroundColor: AppColors.bgSecondary,
+      body: Column(
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(24, MediaQuery.of(context).padding.top + 20, 24, 28),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1C1C1E), Color(0xFF261812)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _step == 0 ? context.pop() : _pageCtrl.previousPage(
+                        duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
+                      child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                    ),
+                    const SizedBox(width: 16),
+                    Text('Become a Rider',
+                        style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Step indicators
+                Row(
+                  children: [
+                    _StepDot(active: _step >= 0, label: '1 Personal'),
+                    Expanded(child: Container(height: 1.5, color: _step >= 1 ? AppColors.accent : Colors.white.withValues(alpha: 0.2))),
+                    _StepDot(active: _step >= 1, label: '2 Vehicle & KYC'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: PageView(
+              controller: _pageCtrl,
+              physics: const NeverScrollableScrollPhysics(),
+              onPageChanged: (i) => setState(() => _step = i),
+              children: [
+                _Step1(
+                  firstNameCtrl: _firstNameCtrl,
+                  surnameCtrl: _surnameCtrl,
+                  phoneCtrl: _phoneCtrl,
+                  emailCtrl: _emailCtrl,
+                  passwordCtrl: _passwordCtrl,
+                  referralCtrl: _referralCtrl,
+                  showReferral: _showReferral,
+                  agreedToTerms: _agreedToTerms,
+                  obscurePassword: _obscurePassword,
+                  onToggleReferral: () => setState(() => _showReferral = !_showReferral),
+                  onToggleTerms: (v) => setState(() => _agreedToTerms = v),
+                  onTogglePassword: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
+                _Step2(
+                  vehicleType: _vehicleType,
+                  licenseCtrl: _licenseCtrl,
+                  plateCtrl: _plateCtrl,
+                  licenseFileName: _licenseFileName,
+                  vehicleFileName: _vehicleFileName,
+                  onVehicleType: (v) => setState(() => _vehicleType = v),
+                  onPickLicense: () => _pickFile(true),
+                  onPickVehicle: () => _pickFile(false),
+                ),
+              ],
+            ),
+          ),
+          // Bottom button
+          Container(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 16),
+            color: AppColors.bgPrimary,
+            child: SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: loading ? null : _nextStep,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: loading
+                    ? const SizedBox(width: 22, height: 22,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                    : Text(_step == 0 ? 'Continue' : 'Submit Application',
+                        style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepDot extends StatelessWidget {
+  final bool active;
+  final String label;
+  const _StepDot({required this.active, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: active ? AppColors.accent : Colors.white.withValues(alpha: 0.25),
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label,
+            style: GoogleFonts.inter(fontSize: 11,
+                color: active ? AppColors.accent : Colors.white.withValues(alpha: 0.4))),
+      ],
+    );
+  }
+}
+
+class _Step1 extends StatelessWidget {
+  final TextEditingController firstNameCtrl, surnameCtrl, phoneCtrl, emailCtrl, passwordCtrl, referralCtrl;
+  final bool showReferral, agreedToTerms, obscurePassword;
+  final VoidCallback onToggleReferral, onTogglePassword;
+  final ValueChanged<bool> onToggleTerms;
+
+  const _Step1({
+    required this.firstNameCtrl, required this.surnameCtrl, required this.phoneCtrl,
+    required this.emailCtrl, required this.passwordCtrl, required this.referralCtrl,
+    required this.showReferral, required this.agreedToTerms, required this.obscurePassword,
+    required this.onToggleReferral, required this.onToggleTerms, required this.onTogglePassword,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+        children: [
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(child: _FieldBox(ctrl: firstNameCtrl, label: 'First Name', hint: 'John')),
+              const SizedBox(width: 12),
+              Expanded(child: _FieldBox(ctrl: surnameCtrl, label: 'Surname', hint: 'Doe')),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _FieldBox(ctrl: phoneCtrl, label: 'Phone Number', hint: '+234 800 000 0000', type: TextInputType.phone),
+          const SizedBox(height: 12),
+          _FieldBox(ctrl: emailCtrl, label: 'Email', hint: 'your@email.com', type: TextInputType.emailAddress),
+          const SizedBox(height: 12),
+          TextField(autocorrect: false, enableSuggestions: false, 
+            controller: passwordCtrl,
+            obscureText: obscurePassword,
+            style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              labelText: 'Password',
+              labelStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
+              filled: true, fillColor: AppColors.bgPrimary,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              suffixIcon: IconButton(
+                icon: Icon(obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: AppColors.textTertiary, size: 20),
+                onPressed: onTogglePassword,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: onToggleReferral,
+            child: Row(
+              children: [
+                Icon(showReferral ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: AppColors.accent, size: 20),
+                const SizedBox(width: 6),
+                Text('Have a referral code?',
+                    style: GoogleFonts.inter(fontSize: 13, color: AppColors.accent, fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+          if (showReferral) ...[
+            const SizedBox(height: 10),
+            _FieldBox(ctrl: referralCtrl, label: 'Referral Code', hint: 'RIDER-XXXX'),
+          ],
+          const SizedBox(height: 20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: agreedToTerms,
+                onChanged: (v) => onToggleTerms(v ?? false),
+                activeColor: AppColors.accent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text.rich(
+                    TextSpan(
+                      text: 'I agree to the ',
+                      style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary),
+                      children: [
+                        TextSpan(text: 'Terms of Service', style: GoogleFonts.inter(color: AppColors.accent, fontWeight: FontWeight.w500)),
+                        const TextSpan(text: ' and '),
+                        TextSpan(text: 'Privacy Policy', style: GoogleFonts.inter(color: AppColors.accent, fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 60),
+        ],
+      ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Step2 extends StatelessWidget {
+  final String vehicleType;
+  final TextEditingController licenseCtrl, plateCtrl;
+  final String? licenseFileName, vehicleFileName;
+  final ValueChanged<String> onVehicleType;
+  final VoidCallback onPickLicense, onPickVehicle;
+
+  const _Step2({
+    required this.vehicleType, required this.licenseCtrl, required this.plateCtrl,
+    required this.licenseFileName, required this.vehicleFileName,
+    required this.onVehicleType, required this.onPickLicense, required this.onPickVehicle,
+  });
+
+  bool get _isBicycle => vehicleType == 'BICYCLE';
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          const SizedBox(height: 4),
+          Text('Vehicle Type', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _VehicleChip(
+                label: 'Motorcycle', icon: Icons.motorcycle_rounded,
+                selected: vehicleType == 'MOTORCYCLE', onTap: () => onVehicleType('MOTORCYCLE'),
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: _VehicleChip(
+                label: 'Bicycle', icon: Icons.directions_bike_rounded,
+                selected: vehicleType == 'BICYCLE', onTap: () => onVehicleType('BICYCLE'),
+              )),
+            ],
+          ),
+          if (!_isBicycle) ...[
+            const SizedBox(height: 16),
+            _FieldBox(ctrl: licenseCtrl, label: 'License Number', hint: 'e.g. LIC-2024-XXXXX'),
+            const SizedBox(height: 12),
+            _FieldBox(ctrl: plateCtrl, label: 'Vehicle Plate', hint: 'e.g. ABC-123-XY'),
+            const SizedBox(height: 24),
+            Text("Documents", style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const SizedBox(height: 4),
+            Text("Upload clear photos of your documents",
+                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
+            const SizedBox(height: 14),
+            _UploadCard(
+              label: "Driver's License",
+              fileName: licenseFileName,
+              onTap: onPickLicense,
+            ),
+            const SizedBox(height: 10),
+            _UploadCard(
+              label: 'Vehicle Registration',
+              fileName: vehicleFileName,
+              onTap: onPickVehicle,
+            ),
+          ],
+          const SizedBox(height: 60),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldBox extends StatelessWidget {
+  final TextEditingController ctrl;
+  final String label, hint;
+  final TextInputType type;
+
+  const _FieldBox({required this.ctrl, required this.label, required this.hint, this.type = TextInputType.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(autocorrect: false, enableSuggestions: false, 
+      controller: ctrl,
+      keyboardType: type,
+      style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary),
+      decoration: InputDecoration(
+        labelText: label, hintText: hint,
+        labelStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
+        hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textQuaternary),
+        filled: true, fillColor: AppColors.bgPrimary,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      ),
+    );
+  }
+}
+
+class _VehicleChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _VehicleChip({required this.label, required this.icon, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accentLight : AppColors.bgPrimary,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? AppColors.accent : AppColors.separator, width: selected ? 1.5 : 1),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: selected ? AppColors.accent : AppColors.textSecondary, size: 28),
+            const SizedBox(height: 6),
+            Text(label, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500,
+                color: selected ? AppColors.accent : AppColors.textSecondary)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UploadCard extends StatelessWidget {
+  final String label;
+  final String? fileName;
+  final VoidCallback onTap;
+
+  const _UploadCard({required this.label, required this.fileName, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.bgPrimary,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: fileName != null ? AppColors.success : AppColors.separator,
+            width: fileName != null ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: (fileName != null ? AppColors.success : AppColors.accent).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                fileName != null ? Icons.check_circle_rounded : Icons.upload_file_rounded,
+                color: fileName != null ? AppColors.success : AppColors.accent,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+                  Text(fileName ?? 'Tap to upload photo',
+                      style: GoogleFonts.inter(fontSize: 12, color: fileName != null ? AppColors.success : AppColors.textTertiary),
+                      overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
