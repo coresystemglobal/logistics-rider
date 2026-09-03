@@ -1,4 +1,4 @@
-package com.traka.traka_rider
+package com.opright.rider
 
 import io.flutter.embedding.android.FlutterActivity
 

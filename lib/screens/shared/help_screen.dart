@@ -36,7 +36,7 @@ class _HelpScreenState extends State<HelpScreen> {
           Text('Emergency Contacts', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: _EmergencyCard('OPRIGHT Support', '24/7', Icons.headset_mic_rounded, AppColors.accent, () => launchUrl(Uri.parse('tel:+2348000000000')))),
+            Expanded(child: _EmergencyCard('OPRIGHT Support', '24/7', Icons.headset_mic_rounded, AppColors.accent, () => launchUrl(Uri.parse('tel:+2349160714439')))),
             const SizedBox(width: 10),
             Expanded(child: _EmergencyCard('Emergency', '112', Icons.local_police_rounded, AppColors.error, () => launchUrl(Uri.parse('tel:112')))),
           ]),
@@ -68,7 +68,7 @@ class _HelpScreenState extends State<HelpScreen> {
 
           // Live chat
           GestureDetector(
-            onTap: () => launchUrl(Uri.parse('https://wa.me/2348000000000?text=Hello%20OPRIGHT%20Support')),
+            onTap: () => launchUrl(Uri.parse('https://wa.me/2349160714439?text=Hello%20OPRIGHT%20Support')),
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(

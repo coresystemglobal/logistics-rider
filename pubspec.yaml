@@ -1,5 +1,5 @@
-name: traka_rider
-description: TRAKA Rider — Delivery partner app
+name: opright_rider
+description: Opright Rider — Delivery partner app
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -32,6 +32,9 @@ dependencies:
 
   # WebSockets (Socket.IO)
   socket_io_client: ^2.0.3+1
+
+  # In-app WebView for payment pages
+  flutter_inappwebview: ^6.1.5
 
   # Image & file handling
   image_picker: ^1.0.7
