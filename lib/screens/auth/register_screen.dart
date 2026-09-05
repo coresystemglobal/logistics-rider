@@ -7,6 +7,7 @@ import 'dart:io';
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/document_service.dart';
+import '../../core/constants/validation_rules.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -62,7 +63,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (_surnameCtrl.text.trim().length < 2) errs['surname'] = 'Surname must be at least 2 characters';
     if (!RegExp(r'^(\+?[1-9]\d{1,14}|0\d{10})$').hasMatch(_phoneCtrl.text.trim())) errs['phone'] = 'Enter a valid phone number';
     if (!_emailCtrl.text.trim().contains('@')) errs['email'] = 'Enter a valid email address';
-    if (_passwordCtrl.text.length < 10) errs['password'] = 'Password must be at least 10 characters';
+    if (_passwordCtrl.text.length < ValidationRules.minPasswordLength) errs['password'] = ValidationRules.passwordTooShort();
     if (!_agreedToTerms) errs['terms'] = 'You must agree to the terms to continue';
     setState(() { _errors.clear(); _errors.addAll(errs); });
     return errs.isEmpty;
