@@ -44,6 +44,7 @@ class AuthState {
   bool get isAuthenticated => status == AuthStatus.authenticated;
   bool get isRider => user?.isRider ?? false;
   bool get isCustomer => user?.isUser ?? false;
+  bool get isEmailVerified => user?.emailVerified ?? false;
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
@@ -116,6 +117,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String phone,
     required String password,
     required String vehicleType,
+    String? licenseNumber,
+    String? vehiclePlate,
+    String? licensePhoto,
+    String? vehiclePhoto,
     String? referralCode,
   }) async {
     state = const AuthState.loading();
@@ -127,10 +132,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         phone: phone,
         password: password,
         vehicleType: vehicleType,
+        licenseNumber: licenseNumber,
+        vehiclePlate: vehiclePlate,
+        licensePhoto: licensePhoto,
+        vehiclePhoto: vehiclePhoto,
         referralCode: referralCode,
       );
-      // Stay unauthenticated so router lands on /pending, not /home
-      state = const AuthState.unauthenticated();
+      // Fetch user so router can check email_verified and redirect correctly
+      final user = await _authService.getMe();
+      state = AuthState.authenticated(user, pending: true);
     } catch (e) {
       final msg = e.toString()
           .replaceFirst(RegExp(r'ApiException\(\d+\): '), '');

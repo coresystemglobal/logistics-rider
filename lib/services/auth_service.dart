@@ -59,6 +59,10 @@ class AuthService {
     required String phone,
     required String password,
     required String vehicleType,
+    String? licenseNumber,
+    String? vehiclePlate,
+    String? licensePhoto,
+    String? vehiclePhoto,
     String? referralCode,
   }) async {
     final data = {
@@ -69,6 +73,14 @@ class AuthService {
       'password': password,
       'vehicle_type': vehicleType,
       'terms_accepted': true,
+      if (licenseNumber != null && licenseNumber.isNotEmpty)
+        'license_number': licenseNumber,
+      if (vehiclePlate != null && vehiclePlate.isNotEmpty)
+        'vehicle_plate': vehiclePlate,
+      if (licensePhoto != null && licensePhoto.isNotEmpty)
+        'license_photo': licensePhoto,
+      if (vehiclePhoto != null && vehiclePhoto.isNotEmpty)
+        'vehicle_photo': vehiclePhoto,
       if (referralCode != null && referralCode.isNotEmpty)
         'referral_code': referralCode,
     };

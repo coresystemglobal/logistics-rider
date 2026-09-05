@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/document_service.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -32,6 +34,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String _vehicleType = 'MOTORCYCLE';
   final _licenseCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
+  File? _licenseFile;
+  File? _vehicleFile;
   String? _licenseFileName;
   String? _vehicleFileName;
 
@@ -56,9 +60,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final errs = <String, String?>{};
     if (_firstNameCtrl.text.trim().length < 2) errs['first_name'] = 'First name must be at least 2 characters';
     if (_surnameCtrl.text.trim().length < 2) errs['surname'] = 'Surname must be at least 2 characters';
-    if (!RegExp(r'^\+?[1-9]\d{1,14}$').hasMatch(_phoneCtrl.text.trim())) errs['phone'] = 'Enter a valid phone number';
+    if (!RegExp(r'^(\+?[1-9]\d{1,14}|0\d{10})$').hasMatch(_phoneCtrl.text.trim())) errs['phone'] = 'Enter a valid phone number';
     if (!_emailCtrl.text.trim().contains('@')) errs['email'] = 'Enter a valid email address';
-    if (_passwordCtrl.text.length < 8) errs['password'] = 'Password must be at least 8 characters';
+    if (_passwordCtrl.text.length < 10) errs['password'] = 'Password must be at least 10 characters';
     if (!_agreedToTerms) errs['terms'] = 'You must agree to the terms to continue';
     setState(() { _errors.clear(); _errors.addAll(errs); });
     return errs.isEmpty;
@@ -84,37 +88,78 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
+  String _normalizePhone(String phone) {
+    phone = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    if (phone.startsWith('+')) return phone;
+    if (phone.startsWith('234')) return '+$phone';
+    if (phone.startsWith('0')) return '+234${phone.substring(1)}';
+    return '+234$phone';
+  }
+
   Future<void> _submit() async {
     final notifier = ref.read(authProvider.notifier);
+    final docService = DocumentService();
+
+    String? licensePhotoUrl;
+    String? vehiclePhotoUrl;
+
+    // Upload license photo if provided
+    if (_licenseFile != null) {
+      try {
+        final result = await docService.uploadDocument(_licenseFile!);
+        licensePhotoUrl = result['url'];
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Failed to upload license photo: $e'),
+            backgroundColor: Colors.red.shade700,
+          ));
+        }
+        return;
+      }
+    }
+
+    // Upload vehicle photo if provided
+    if (_vehicleFile != null) {
+      try {
+        final result = await docService.uploadDocument(_vehicleFile!);
+        vehiclePhotoUrl = result['url'];
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Failed to upload vehicle photo: $e'),
+            backgroundColor: Colors.red.shade700,
+          ));
+        }
+        return;
+      }
+    }
+
     await notifier.registerRider(
       firstName: _firstNameCtrl.text.trim(),
       surname: _surnameCtrl.text.trim(),
-      phone: _phoneCtrl.text.trim(),
+      phone: _normalizePhone(_phoneCtrl.text.trim()),
       email: _emailCtrl.text.trim(),
       password: _passwordCtrl.text,
       vehicleType: _vehicleType,
+      licenseNumber: _vehicleType != 'BICYCLE' ? _licenseCtrl.text.trim() : null,
+      vehiclePlate: _vehicleType != 'BICYCLE' ? _plateCtrl.text.trim() : null,
+      licensePhoto: licensePhotoUrl,
+      vehiclePhoto: vehiclePhotoUrl,
       referralCode: _showReferral && _referralCtrl.text.isNotEmpty ? _referralCtrl.text.trim() : null,
     );
-    if (!mounted) return;
-    final authState = ref.read(authProvider);
-    if (authState.status == AuthStatus.unauthenticated && authState.error == null) {
-      context.go('/pending');
-    } else if (authState.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(authState.error!),
-        backgroundColor: Colors.red.shade700,
-        behavior: SnackBarBehavior.floating,
-      ));
-    }
   }
 
   Future<void> _pickFile(bool isLicense) async {
     final files = await FilePicker.pickFiles(type: FileType.image);
     if (files.isNotEmpty) {
+      final file = File(files.first.path!);
       setState(() {
         if (isLicense) {
+          _licenseFile = file;
           _licenseFileName = files.first.name;
         } else {
+          _vehicleFile = file;
           _vehicleFileName = files.first.name;
         }
       });
@@ -125,6 +170,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final loading = authState.status == AuthStatus.loading;
+
+    ref.listen<AuthState>(authProvider, (prev, next) {
+      if (prev?.status != AuthStatus.loading) return;
+      if (next.status == AuthStatus.authenticated) {
+        context.go('/verify-email');
+      } else if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(next.error!),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColors.bgSecondary,
