@@ -97,9 +97,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
     if (!mounted) return;
     final authState = ref.read(authProvider);
-    if (authState.error == null) {
+    if (authState.status == AuthStatus.unauthenticated && authState.error == null) {
       context.go('/pending');
-    } else {
+    } else if (authState.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(authState.error!),
         backgroundColor: Colors.red.shade700,
@@ -124,7 +124,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
-    final loading = authState.status == AuthStatus.unknown;
+    final loading = authState.status == AuthStatus.loading;
 
     return Scaffold(
       backgroundColor: AppColors.bgSecondary,

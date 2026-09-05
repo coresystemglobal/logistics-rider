@@ -1,33 +1,45 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../services/rider_service.dart';
 import '../core/api/token_storage.dart';
 
-enum AuthStatus { unknown, authenticated, unauthenticated }
+enum AuthStatus { unknown, loading, authenticated, unauthenticated }
 
 class AuthState {
   final AuthStatus status;
   final UserModel? user;
   final String? error;
+  final bool isPendingRider;
 
   const AuthState({
     required this.status,
     this.user,
     this.error,
+    this.isPendingRider = false,
   });
 
   const AuthState.unknown()
       : status = AuthStatus.unknown,
         user = null,
-        error = null;
+        error = null,
+        isPendingRider = false;
 
-  const AuthState.authenticated(UserModel this.user)
+  const AuthState.loading()
+      : status = AuthStatus.loading,
+        user = null,
+        error = null,
+        isPendingRider = false;
+
+  AuthState.authenticated(UserModel this.user, {bool pending = false})
       : status = AuthStatus.authenticated,
-        error = null;
+        error = null,
+        isPendingRider = pending;
 
   const AuthState.unauthenticated([this.error])
       : status = AuthStatus.unauthenticated,
-        user = null;
+        user = null,
+        isPendingRider = false;
 
   bool get isAuthenticated => status == AuthStatus.authenticated;
   bool get isRider => user?.isRider ?? false;
@@ -36,8 +48,9 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
+  final RiderService _riderService;
 
-  AuthNotifier(this._authService) : super(const AuthState.unknown()) {
+  AuthNotifier(this._authService, this._riderService) : super(const AuthState.unknown()) {
     _checkAuthStatus();
   }
 
@@ -49,6 +62,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return;
       }
       final user = await _authService.getMe();
+      if (user.isRider) {
+        try {
+          final profile = await _riderService.getProfile();
+          if (profile.verificationStatus == 'PENDING') {
+            state = AuthState.authenticated(user, pending: true);
+            return;
+          }
+        } catch (_) {}
+      }
       state = AuthState.authenticated(user);
     } catch (_) {
       await TokenStorage.clearTokens();
@@ -96,6 +118,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String vehicleType,
     String? referralCode,
   }) async {
+    state = const AuthState.loading();
     try {
       await _authService.registerRider(
         firstName: firstName,
@@ -106,10 +129,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
         vehicleType: vehicleType,
         referralCode: referralCode,
       );
-      final user = await _authService.getMe();
-      state = AuthState.authenticated(user);
+      // Stay unauthenticated so router lands on /pending, not /home
+      state = const AuthState.unauthenticated();
     } catch (e) {
-      state = AuthState.unauthenticated(e.toString().replaceFirst('ApiException(400): ', '').replaceFirst('ApiException(422): ', ''));
+      final msg = e.toString()
+          .replaceFirst(RegExp(r'ApiException\(\d+\): '), '');
+      state = AuthState.unauthenticated(msg);
     }
   }
 
@@ -148,8 +173,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
 // Providers
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+final riderServiceProvider = Provider<RiderService>((ref) => RiderService());
 
 final authProvider =
     StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.read(authServiceProvider));
+  return AuthNotifier(ref.read(authServiceProvider), ref.read(riderServiceProvider));
 });

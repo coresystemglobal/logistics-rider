@@ -4,6 +4,7 @@ class RiderModel {
   final String uniqueId;  // TRK-XXXX
   final String vehicleType; // BICYCLE, MOTORCYCLE, VAN
   final String status;     // AVAILABLE, BUSY, OFFLINE
+  final String verificationStatus; // PENDING, VERIFIED, REJECTED
   final bool isAvailable;
   final double? latitude;
   final double? longitude;
@@ -20,6 +21,7 @@ class RiderModel {
     required this.uniqueId,
     required this.vehicleType,
     required this.status,
+    required this.verificationStatus,
     required this.isAvailable,
     this.latitude,
     this.longitude,
@@ -37,6 +39,7 @@ class RiderModel {
         uniqueId: json['unique_id'] ?? json['uniqueId'] ?? '',
         vehicleType: json['vehicle_type'] ?? json['vehicleType'] ?? 'MOTORCYCLE',
         status: json['status'] ?? 'OFFLINE',
+        verificationStatus: json['verification_status'] ?? json['verificationStatus'] ?? 'PENDING',
         isAvailable: json['is_available'] ?? json['isAvailable'] ?? false,
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),

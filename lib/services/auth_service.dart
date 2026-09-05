@@ -68,6 +68,7 @@ class AuthService {
       'phone': phone,
       'password': password,
       'vehicle_type': vehicleType,
+      'terms_accepted': true,
       if (referralCode != null && referralCode.isNotEmpty)
         'referral_code': referralCode,
     };

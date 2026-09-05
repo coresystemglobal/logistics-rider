@@ -40,10 +40,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc.startsWith('/login') || loc.startsWith('/register') ||
           loc.startsWith('/pending');
 
-      if (status == AuthStatus.unknown) return '/';
+      if (status == AuthStatus.unknown || status == AuthStatus.loading) return '/';
       if (status == AuthStatus.unauthenticated && !isPublic) return '/login';
-      if (status == AuthStatus.authenticated && isPublic && loc != '/pending') {
-        return '/home';
+      if (status == AuthStatus.authenticated) {
+        if (authState.isPendingRider && loc != '/pending') return '/pending';
+        if (!authState.isPendingRider && isPublic && loc != '/pending') return '/home';
       }
       return null;
     },
