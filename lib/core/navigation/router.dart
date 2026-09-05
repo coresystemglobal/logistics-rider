@@ -6,6 +6,7 @@ import '../../screens/auth/splash_screen.dart';
 import '../../screens/auth/onboarding_screen.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/register_screen.dart';
+import '../../screens/auth/verify_email_screen.dart';
 import '../../screens/auth/pending_approval_screen.dart';
 import '../../screens/rider/rider_shell.dart';
 import '../../screens/rider/home_screen.dart';
@@ -38,11 +39,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final isPublic = loc == '/' || loc.startsWith('/onboarding') ||
           loc.startsWith('/login') || loc.startsWith('/register') ||
-          loc.startsWith('/pending');
+          loc.startsWith('/verify-email') || loc.startsWith('/pending');
 
-      if (status == AuthStatus.unknown || status == AuthStatus.loading) return '/';
+      if (status == AuthStatus.unknown) return '/';
       if (status == AuthStatus.unauthenticated && !isPublic) return '/login';
       if (status == AuthStatus.authenticated) {
+        // Must verify email before anything else
+        if (!authState.isEmailVerified && loc != '/verify-email') return '/verify-email';
         if (authState.isPendingRider && loc != '/pending') return '/pending';
         if (!authState.isPendingRider && isPublic && loc != '/pending') return '/home';
       }
@@ -53,6 +56,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
+      GoRoute(path: '/verify-email', builder: (_, __) => const VerifyEmailScreen()),
       GoRoute(path: '/pending', builder: (_, __) => const PendingApprovalScreen()),
 
       ShellRoute(
