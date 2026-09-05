@@ -105,7 +105,8 @@ class RiderProfileScreen extends ConsumerWidget {
                     ]),
                     const SizedBox(height: 12),
                     _Section('Vehicle & Documents', [
-                      _SettingRow(Icons.motorcycle_rounded, 'Vehicle Details', () => context.push('/vehicle-docs')),
+                      if (profile.vehicleType.toUpperCase() != 'BICYCLE')
+                        _SettingRow(Icons.motorcycle_rounded, 'Vehicle Details', () => context.push('/vehicle-docs')),
                       _SettingRow(Icons.description_rounded, 'My Documents', () => context.push('/vehicle-docs')),
                     ]),
                     const SizedBox(height: 12),
