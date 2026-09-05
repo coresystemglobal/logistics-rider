@@ -1,29 +1,25 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/wallet_service.dart';
+import '../../services/dashboard_service.dart';
 import '../../models/wallet_model.dart';
+import '../../models/dashboard_model.dart';
 
 final _walletProvider = FutureProvider.autoDispose<WalletModel>((_) => WalletService().getBalance());
+final _dashboardProvider = FutureProvider.autoDispose<RiderDashboardModel>((_) => DashboardService().getRiderDashboard());
+final _transactionsProvider = FutureProvider.autoDispose<List<WalletTransactionModel>>((_) => WalletService().getTransactions(limit: 5));
 
-class EarningsScreen extends ConsumerStatefulWidget {
+class EarningsScreen extends ConsumerWidget {
   const EarningsScreen({super.key});
-  @override ConsumerState<EarningsScreen> createState() => _EarningsScreenState();
-}
-
-class _EarningsScreenState extends ConsumerState<EarningsScreen> {
-  String _period = 'Week';
-
-  static const _barData = [2800.0, 4200.0, 1500.0, 5600.0, 3200.0, 4800.0, 2100.0];
-  static const _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final walletAsync = ref.watch(_walletProvider);
-    final total = _barData.reduce((a, b) => a + b);
+    final dashboardAsync = ref.watch(_dashboardProvider);
+    final transactionsAsync = ref.watch(_transactionsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.bgSecondary,
@@ -76,86 +72,23 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Period selector
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(color: AppColors.bgPrimary, borderRadius: BorderRadius.circular(12)),
-                      child: Row(
-                        children: ['Today', 'Week', 'Month'].map((p) {
-                          final active = _period == p;
-                          return Expanded(child: GestureDetector(
-                            onTap: () => setState(() => _period = p),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              decoration: BoxDecoration(
-                                color: active ? AppColors.accent : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(p, textAlign: TextAlign.center,
-                                  style: GoogleFonts.inter(fontSize: 13, fontWeight: active ? FontWeight.w700 : FontWeight.w400, color: active ? Colors.white : AppColors.textTertiary)),
-                            ),
-                          ));
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Earnings hero
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: AppColors.bgPrimary, borderRadius: BorderRadius.circular(16),
-                          boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('This $_period', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary)),
-                          const SizedBox(height: 4),
-                          Text('₦${total.toStringAsFixed(0)}', style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                          const SizedBox(height: 20),
-                          // Bar chart
-                          SizedBox(
-                            height: 120,
-                            child: BarChart(BarChartData(
-                              alignment: BarChartAlignment.spaceAround,
-                              maxY: _barData.reduce((a, b) => a > b ? a : b) * 1.2,
-                              barTouchData: BarTouchData(enabled: false),
-                              titlesData: FlTitlesData(
-                                show: true,
-                                bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, _) {
-                                  final i = v.toInt();
-                                  if (i < 0 || i >= _days.length) return const SizedBox.shrink();
-                                  return Text(_days[i], style: GoogleFonts.inter(fontSize: 11, color: AppColors.textQuaternary));
-                                })),
-                                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              ),
-                              gridData: const FlGridData(show: false),
-                              borderData: FlBorderData(show: false),
-                              barGroups: List.generate(_barData.length, (i) => BarChartGroupData(
-                                x: i,
-                                barRods: [BarChartRodData(
-                                  toY: _barData[i],
-                                  color: i == 3 ? AppColors.accent : AppColors.accent.withValues(alpha: 0.35),
-                                  width: 20, borderRadius: BorderRadius.circular(6),
-                                )],
-                              )),
-                            )),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
                     // Stats strip
-                    Row(children: [
-                      Expanded(child: _Stat('Deliveries', '14', Icons.local_shipping_rounded, AppColors.iosBlue)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _Stat('Avg / Job', '₦1,700', Icons.trending_up_rounded, AppColors.success)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _Stat('Online Hrs', '6.5h', Icons.schedule_rounded, AppColors.warning)),
-                    ]),
+                    dashboardAsync.when(
+                      loading: () => Container(height: 80, decoration: BoxDecoration(color: AppColors.bgTertiary, borderRadius: BorderRadius.circular(14))),
+                      error: (_, __) => const SizedBox.shrink(),
+                      data: (dashboard) {
+                        final avgPerJob = dashboard.totalDeliveries > 0
+                            ? dashboard.totalEarnings / dashboard.totalDeliveries
+                            : 0.0;
+                        return Row(children: [
+                          Expanded(child: _Stat('Deliveries', '${dashboard.totalDeliveries}', Icons.local_shipping_rounded, AppColors.iosBlue)),
+                          const SizedBox(width: 10),
+                          Expanded(child: _Stat('Avg / Job', '₦${avgPerJob.toStringAsFixed(0)}', Icons.trending_up_rounded, AppColors.success)),
+                          const SizedBox(width: 10),
+                          Expanded(child: _Stat('Today', '₦${dashboard.todayEarnings.toStringAsFixed(0)}', Icons.today_rounded, AppColors.warning)),
+                        ]);
+                      },
+                    ),
                     const SizedBox(height: 20),
 
                     // Recent transactions header
@@ -167,7 +100,19 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
                       ),
                     ]),
                     const SizedBox(height: 10),
-                    ..._sampleTransactions.map((t) => _TransactionRow(t: t)),
+                    transactionsAsync.when(
+                      loading: () => Column(children: List.generate(3, (_) => Container(
+                        height: 64, margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(color: AppColors.bgTertiary, borderRadius: BorderRadius.circular(12)),
+                      ))),
+                      error: (_, __) => const SizedBox.shrink(),
+                      data: (txns) => txns.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 24),
+                              child: Text('No transactions yet', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textTertiary)),
+                            )
+                          : Column(children: txns.map((t) => _TransactionRow(t: t)).toList()),
+                    ),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -178,18 +123,6 @@ class _EarningsScreenState extends ConsumerState<EarningsScreen> {
       ),
     );
   }
-
-  static const _sampleTransactions = [
-    _Txn('Delivery #TRK-8829', '+₦2,800', 'Today, 2:34 PM', true),
-    _Txn('Delivery #TRK-7712', '+₦1,900', 'Today, 10:15 AM', true),
-    _Txn('Withdrawal', '-₦5,000', 'Yesterday, 3:00 PM', false),
-  ];
-}
-
-class _Txn {
-  final String title, amount, date;
-  final bool isCredit;
-  const _Txn(this.title, this.amount, this.date, this.isCredit);
 }
 
 Widget _Stat(String label, String value, IconData icon, Color color) {
@@ -207,8 +140,18 @@ Widget _Stat(String label, String value, IconData icon, Color color) {
 }
 
 class _TransactionRow extends StatelessWidget {
-  final _Txn t;
+  final WalletTransactionModel t;
   const _TransactionRow({required this.t});
+
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return '';
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays == 0) return 'Today, ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    if (diff.inDays == 1) return 'Yesterday, ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -225,11 +168,12 @@ class _TransactionRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(t.title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
-          Text(t.date, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
+          Text(t.description ?? (t.isCredit ? 'Delivery Earnings' : 'Withdrawal'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+          Text(_formatDate(t.createdAt), style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
         ])),
-        Text(t.amount, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700,
-            color: t.isCredit ? AppColors.success : AppColors.textPrimary)),
+        Text('${t.isCredit ? '+' : '-'}₦${t.amount.toStringAsFixed(0)}',
+            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700,
+                color: t.isCredit ? AppColors.success : AppColors.textPrimary)),
       ]),
     );
   }

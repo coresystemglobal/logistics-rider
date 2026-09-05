@@ -104,12 +104,20 @@ class RiderProfileScreen extends ConsumerWidget {
                       _SettingRow(Icons.lock_rounded, 'Change Password', () => context.push('/change-password')),
                     ]),
                     const SizedBox(height: 12),
-                    _Section('Vehicle & Documents', [
-                      if (profile.vehicleType.toUpperCase() != 'BICYCLE')
-                        _SettingRow(Icons.motorcycle_rounded, 'Vehicle Details', () => context.push('/vehicle-docs')),
-                      _SettingRow(Icons.description_rounded, 'My Documents', () => context.push('/vehicle-docs')),
-                    ]),
-                    const SizedBox(height: 12),
+                    profileAsync.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                      data: (profile) => Column(
+                        children: [
+                          _Section('Vehicle & Documents', [
+                            if (profile.vehicleType.toUpperCase() != 'BICYCLE')
+                              _SettingRow(Icons.motorcycle_rounded, 'Vehicle Details', () => context.push('/vehicle-docs')),
+                            _SettingRow(Icons.description_rounded, 'My Documents', () => context.push('/vehicle-docs')),
+                          ]),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
                     _Section('Performance', [
                       _SettingRow(Icons.bar_chart_rounded, 'Performance Stats', () => context.push('/performance')),
                     ]),

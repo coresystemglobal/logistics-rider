@@ -40,7 +40,7 @@ class RiderModel {
   factory RiderModel.fromJson(Map<String, dynamic> json) => RiderModel(
         id: json['id']?.toString() ?? '',
         userId: json['user_id']?.toString() ?? json['userId']?.toString() ?? '',
-        uniqueId: json['unique_id'] ?? json['uniqueId'] ?? '',
+        uniqueId: json['unique_id'] ?? json['uniqueId'] ?? json['rider_id'] ?? '',
         vehicleType: json['vehicle_type'] ?? json['vehicleType'] ?? 'MOTORCYCLE',
         status: json['status'] ?? 'OFFLINE',
         verificationStatus: json['verification_status'] ?? json['verificationStatus'] ?? 'PENDING',

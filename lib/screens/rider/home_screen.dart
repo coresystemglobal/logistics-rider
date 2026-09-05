@@ -123,7 +123,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
     if (permission == LocationPermission.deniedForever) throw Exception('Location permission permanently denied');
 
-    return Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+    return Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
   }
 
   @override
