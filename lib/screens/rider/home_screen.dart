@@ -3,14 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/rider_service.dart';
 import '../../services/dashboard_service.dart';
 import '../../services/real_time_service.dart';
 import '../../models/dashboard_model.dart';
+import '../../models/rider_model.dart';
 
 enum _OnlineState { offline, activating, online }
+
+final _riderProfileProvider = FutureProvider.autoDispose<RiderModel>(
+  (_) => RiderService().getProfile(),
+);
 
 final _dashboardProvider = FutureProvider.autoDispose<RiderDashboardModel>(
   (_) => DashboardService().getRiderDashboard(),
@@ -28,12 +34,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   _OnlineState _onlineState = _OnlineState.offline;
   late final AnimationController _sonarCtrl;
   Timer? _activationTimer;
+  bool _profileLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _sonarCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
       ..repeat();
+  }
+
+  // Sync toggle state from actual server profile once on first load
+  void _syncFromProfile(RiderModel profile) {
+    if (_profileLoaded) return;
+    _profileLoaded = true;
+    if (profile.isAvailable && profile.status == 'AVAILABLE') {
+      setState(() => _onlineState = _OnlineState.online);
+    }
   }
 
   @override
@@ -43,66 +59,83 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.dispose();
   }
 
-  Future<void> _toggleOnline() async {
+  Future<void> _toggleOnline(RiderModel profile) async {
+    if (profile.verificationStatus != 'VERIFIED') {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Your account must be verified before going online'),
+        backgroundColor: AppColors.warning,
+      ));
+      return;
+    }
     if (_onlineState == _OnlineState.offline) {
       setState(() => _onlineState = _OnlineState.activating);
       _activationTimer = Timer(const Duration(milliseconds: 1600), () async {
-        final success = await _updateStatus(true);
+        final success = await _updateStatus(true, profile);
         if (mounted) setState(() => _onlineState = success ? _OnlineState.online : _OnlineState.offline);
       });
     } else if (_onlineState == _OnlineState.online) {
       setState(() => _onlineState = _OnlineState.offline);
-      await _updateStatus(false);
+      await _updateStatus(false, profile);
     }
   }
 
-  Future<bool> _updateStatus(bool online) async {
+  Future<bool> _updateStatus(bool online, RiderModel profile) async {
     try {
-      await RiderService().updateStatus(online ? 'AVAILABLE' : 'OFFLINE');
+      // Single call — updateAvailability handles both is_available + syncCourierPresence
       await RiderService().updateAvailability(online);
 
       if (online) {
-        final profile = await RiderService().getProfile();
+        final position = await _getLocation();
         await RiderService().updateCourierLocation(
           courierId: profile.id,
-          latitude: 6.4281,
-          longitude: 3.4219,
+          latitude: position.latitude,
+          longitude: position.longitude,
           vehicleType: profile.vehicleType,
         );
-        await RiderService().updateCourierStatus(
-          courierId: profile.id,
-          status: 'AVAILABLE',
-        );
-
-        // Connect to real-time offers for this rider
+        await RiderService().updateCourierStatus(courierId: profile.id, status: 'AVAILABLE');
         final realTime = RealTimeService.instance;
         await realTime.connect();
         realTime.joinRider(profile.id);
       } else {
-        final profile = await RiderService().getProfile();
-        await RiderService().updateCourierStatus(
-          courierId: profile.id,
-          status: 'OFFLINE',
-        );
+        await RiderService().updateCourierStatus(courierId: profile.id, status: 'OFFLINE');
         RealTimeService.instance.leaveRider(profile.id);
       }
       return true;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Status update failed: ${e.toString().replaceAll('Exception: ', '')}'), backgroundColor: AppColors.error),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Status update failed: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: AppColors.error,
+        ));
       }
       return false;
     }
   }
 
+  Future<Position> _getLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) throw Exception('Location services are disabled');
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) throw Exception('Location permission denied');
+    }
+    if (permission == LocationPermission.deniedForever) throw Exception('Location permission permanently denied');
+
+    return Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
+    final profileAsync = ref.watch(_riderProfileProvider);
     final dashboardAsync = ref.watch(_dashboardProvider);
     final isOnline = _onlineState == _OnlineState.online;
     final isActivating = _onlineState == _OnlineState.activating;
+
+    // Sync toggle from real profile on first load
+    profileAsync.whenData(_syncFromProfile);
 
     return Scaffold(
       backgroundColor: AppColors.bgSecondary,
@@ -144,10 +177,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: Column(
                       children: [
                         // Online toggle hero
-                        _OnlineToggleCard(
-                          state: _onlineState,
-                          sonarCtrl: _sonarCtrl,
-                          onToggle: _toggleOnline,
+                        profileAsync.when(
+                          loading: () => const _ToggleShimmer(),
+                          error: (_, __) => _OnlineToggleCard(
+                            state: _onlineState,
+                            sonarCtrl: _sonarCtrl,
+                            onToggle: () {},
+                          ),
+                          data: (profile) => _OnlineToggleCard(
+                            state: _onlineState,
+                            sonarCtrl: _sonarCtrl,
+                            onToggle: () => _toggleOnline(profile),
+                          ),
                         ),
                         const SizedBox(height: 16),
 
@@ -262,6 +303,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (h < 12) return 'morning';
     if (h < 17) return 'afternoon';
     return 'evening';
+  }
+}
+
+class _ToggleShimmer extends StatelessWidget {
+  const _ToggleShimmer();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(
+        color: AppColors.bgPrimary,
+        borderRadius: BorderRadius.circular(20),
+      ),
+    );
   }
 }
 
