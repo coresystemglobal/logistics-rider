@@ -95,7 +95,13 @@ class ApiClient {
 
   ApiException _mapError(DioException err) {
     final data = err.response?.data;
-    final message = (data is Map ? data['error'] ?? data['message'] : null) ??
+    final message = (data is Map
+            ? ((data['validation_errors'] as List?)?.isNotEmpty == true
+                ? (data['validation_errors'] as List).first['message'] as String?
+                : null) ??
+                data['error'] ??
+                data['message']
+            : null) ??
         err.message ??
         'An error occurred';
 

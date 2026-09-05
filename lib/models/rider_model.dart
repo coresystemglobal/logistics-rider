@@ -11,6 +11,8 @@ class RiderModel {
   final double? rating;
   final int? totalDeliveries;
   final String? licenseNumber;
+  final String? licensePhoto;
+  final String? vehiclePhoto;
   final String? businessId;
   final Map<String, dynamic>? user;
   final DateTime? createdAt;
@@ -28,6 +30,8 @@ class RiderModel {
     this.rating,
     this.totalDeliveries,
     this.licenseNumber,
+    this.licensePhoto,
+    this.vehiclePhoto,
     this.businessId,
     this.user,
     this.createdAt,
@@ -46,6 +50,8 @@ class RiderModel {
         rating: (json['rating'] as num?)?.toDouble(),
         totalDeliveries: json['total_deliveries'] ?? json['totalDeliveries'],
         licenseNumber: json['license_number'] ?? json['licenseNumber'],
+        licensePhoto: json['license_photo'] ?? json['licensePhoto'],
+        vehiclePhoto: json['vehicle_photo'] ?? json['vehiclePhoto'],
         businessId: json['business_id']?.toString() ?? json['businessId']?.toString(),
         user: json['user'] as Map<String, dynamic>?,
         createdAt: json['created_at'] != null

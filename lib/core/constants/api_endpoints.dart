@@ -25,6 +25,7 @@ class ApiEndpoints {
   // Riders
   static const String riderJobs = '/riders/jobs';
   static const String riderProfile = '/riders/profile';
+  static const String riderDocuments = '/riders/documents';
   static const String riderLocation = '/riders/location';
   static const String riderStatus = '/riders/status';
   static const String riderAvailability = '/riders/availability';
@@ -135,7 +136,10 @@ class ApiEndpoints {
   static const String waitlist = '/waitlist';
 
   // Upload
-  static const String upload = '/upload';
+  static const String uploadProfile = '/upload/profile';
+  static const String uploadVehicle = '/upload/vehicle';
+  static const String uploadPackage = '/upload/package';
+  static const String uploadDocument = '/upload/document';
 
   // Pricing
   static const String calculatePrice = '/pricing/calculate';
