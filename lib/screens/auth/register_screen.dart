@@ -35,6 +35,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String? _licenseFileName;
   String? _vehicleFileName;
 
+  // Inline validation errors
+  final Map<String, String?> _errors = {};
+
   @override
   void dispose() {
     _pageCtrl.dispose();
@@ -49,16 +52,34 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
+  bool _validateStep1() {
+    final errs = <String, String?>{};
+    if (_firstNameCtrl.text.trim().length < 2) errs['first_name'] = 'First name must be at least 2 characters';
+    if (_surnameCtrl.text.trim().length < 2) errs['surname'] = 'Surname must be at least 2 characters';
+    if (!RegExp(r'^\+?[1-9]\d{1,14}$').hasMatch(_phoneCtrl.text.trim())) errs['phone'] = 'Enter a valid phone number';
+    if (!_emailCtrl.text.trim().contains('@')) errs['email'] = 'Enter a valid email address';
+    if (_passwordCtrl.text.length < 8) errs['password'] = 'Password must be at least 8 characters';
+    if (!_agreedToTerms) errs['terms'] = 'You must agree to the terms to continue';
+    setState(() { _errors.clear(); _errors.addAll(errs); });
+    return errs.isEmpty;
+  }
+
+  bool _validateStep2() {
+    final errs = <String, String?>{};
+    if (_vehicleType != 'BICYCLE') {
+      if (_licenseCtrl.text.trim().isEmpty) errs['license'] = 'License number is required';
+      if (_plateCtrl.text.trim().isEmpty) errs['plate'] = 'Vehicle plate is required';
+    }
+    setState(() { _errors.clear(); _errors.addAll(errs); });
+    return errs.isEmpty;
+  }
+
   void _nextStep() {
     if (_step == 0) {
-      if (!_agreedToTerms) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please agree to the terms to continue')),
-        );
-        return;
-      }
+      if (!_validateStep1()) return;
       _pageCtrl.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
+      if (!_validateStep2()) return;
       _submit();
     }
   }
@@ -75,11 +96,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       referralCode: _showReferral && _referralCtrl.text.isNotEmpty ? _referralCtrl.text.trim() : null,
     );
     if (!mounted) return;
-    final state = ref.read(authProvider);
-    if (state.error == null) {
+    final authState = ref.read(authProvider);
+    if (authState.error == null) {
       context.go('/pending');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(authState.error!),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 
@@ -105,7 +130,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       backgroundColor: AppColors.bgSecondary,
       body: Column(
         children: [
-          // Header
           Container(
             width: double.infinity,
             padding: EdgeInsets.fromLTRB(24, MediaQuery.of(context).padding.top + 20, 24, 28),
@@ -132,7 +156,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                // Step indicators
                 Row(
                   children: [
                     _StepDot(active: _step >= 0, label: '1 Personal'),
@@ -159,6 +182,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   showReferral: _showReferral,
                   agreedToTerms: _agreedToTerms,
                   obscurePassword: _obscurePassword,
+                  errors: _errors,
                   onToggleReferral: () => setState(() => _showReferral = !_showReferral),
                   onToggleTerms: (v) => setState(() => _agreedToTerms = v),
                   onTogglePassword: () => setState(() => _obscurePassword = !_obscurePassword),
@@ -169,6 +193,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   plateCtrl: _plateCtrl,
                   licenseFileName: _licenseFileName,
                   vehicleFileName: _vehicleFileName,
+                  errors: _errors,
                   onVehicleType: (v) => setState(() => _vehicleType = v),
                   onPickLicense: () => _pickFile(true),
                   onPickVehicle: () => _pickFile(false),
@@ -176,7 +201,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ],
             ),
           ),
-          // Bottom button
           Container(
             padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 16),
             color: AppColors.bgPrimary,
@@ -234,6 +258,7 @@ class _StepDot extends StatelessWidget {
 class _Step1 extends StatelessWidget {
   final TextEditingController firstNameCtrl, surnameCtrl, phoneCtrl, emailCtrl, passwordCtrl, referralCtrl;
   final bool showReferral, agreedToTerms, obscurePassword;
+  final Map<String, String?> errors;
   final VoidCallback onToggleReferral, onTogglePassword;
   final ValueChanged<bool> onToggleTerms;
 
@@ -241,6 +266,7 @@ class _Step1 extends StatelessWidget {
     required this.firstNameCtrl, required this.surnameCtrl, required this.phoneCtrl,
     required this.emailCtrl, required this.passwordCtrl, required this.referralCtrl,
     required this.showReferral, required this.agreedToTerms, required this.obscurePassword,
+    required this.errors,
     required this.onToggleReferral, required this.onToggleTerms, required this.onTogglePassword,
   });
 
@@ -252,83 +278,108 @@ class _Step1 extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
           child: Column(
-        children: [
-          const SizedBox(height: 4),
-          Row(
             children: [
-              Expanded(child: _FieldBox(ctrl: firstNameCtrl, label: 'First Name', hint: 'John')),
-              const SizedBox(width: 12),
-              Expanded(child: _FieldBox(ctrl: surnameCtrl, label: 'Surname', hint: 'Doe')),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _FieldBox(ctrl: phoneCtrl, label: 'Phone Number', hint: '+234 800 000 0000', type: TextInputType.phone),
-          const SizedBox(height: 12),
-          _FieldBox(ctrl: emailCtrl, label: 'Email', hint: 'your@email.com', type: TextInputType.emailAddress),
-          const SizedBox(height: 12),
-          TextField(autocorrect: false, enableSuggestions: false, 
-            controller: passwordCtrl,
-            obscureText: obscurePassword,
-            style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              labelText: 'Password',
-              labelStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
-              filled: true, fillColor: AppColors.bgPrimary,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              suffixIcon: IconButton(
-                icon: Icon(obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: AppColors.textTertiary, size: 20),
-                onPressed: onTogglePassword,
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(child: _FieldBox(ctrl: firstNameCtrl, label: 'First Name', hint: 'John', error: errors['first_name'])),
+                  const SizedBox(width: 12),
+                  Expanded(child: _FieldBox(ctrl: surnameCtrl, label: 'Surname', hint: 'Doe', error: errors['surname'])),
+                ],
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          GestureDetector(
-            onTap: onToggleReferral,
-            child: Row(
-              children: [
-                Icon(showReferral ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: AppColors.accent, size: 20),
-                const SizedBox(width: 6),
-                Text('Have a referral code?',
-                    style: GoogleFonts.inter(fontSize: 13, color: AppColors.accent, fontWeight: FontWeight.w500)),
-              ],
-            ),
-          ),
-          if (showReferral) ...[
-            const SizedBox(height: 10),
-            _FieldBox(ctrl: referralCtrl, label: 'Referral Code', hint: 'RIDER-XXXX'),
-          ],
-          const SizedBox(height: 20),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: agreedToTerms,
-                onChanged: (v) => onToggleTerms(v ?? false),
-                activeColor: AppColors.accent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Text.rich(
-                    TextSpan(
-                      text: 'I agree to the ',
-                      style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary),
-                      children: [
-                        TextSpan(text: 'Terms of Service', style: GoogleFonts.inter(color: AppColors.accent, fontWeight: FontWeight.w500)),
-                        const TextSpan(text: ' and '),
-                        TextSpan(text: 'Privacy Policy', style: GoogleFonts.inter(color: AppColors.accent, fontWeight: FontWeight.w500)),
-                      ],
-                    ),
+              const SizedBox(height: 12),
+              _FieldBox(ctrl: phoneCtrl, label: 'Phone Number', hint: '+234 800 000 0000', type: TextInputType.phone, error: errors['phone']),
+              const SizedBox(height: 12),
+              _FieldBox(ctrl: emailCtrl, label: 'Email', hint: 'your@email.com', type: TextInputType.emailAddress, error: errors['email']),
+              const SizedBox(height: 12),
+              TextField(
+                autocorrect: false,
+                enableSuggestions: false,
+                controller: passwordCtrl,
+                obscureText: obscurePassword,
+                style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  labelStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
+                  filled: true, fillColor: AppColors.bgPrimary,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: errors['password'] != null
+                        ? BorderSide(color: Colors.red.shade400, width: 1.5)
+                        : BorderSide.none,
+                  ),
+                  errorText: errors['password'],
+                  errorStyle: GoogleFonts.inter(fontSize: 11, color: Colors.red.shade400),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                        color: AppColors.textTertiary, size: 20),
+                    onPressed: onTogglePassword,
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: onToggleReferral,
+                child: Row(
+                  children: [
+                    Icon(showReferral ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: AppColors.accent, size: 20),
+                    const SizedBox(width: 6),
+                    Text('Have a referral code?',
+                        style: GoogleFonts.inter(fontSize: 13, color: AppColors.accent, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
+              if (showReferral) ...[
+                const SizedBox(height: 10),
+                _FieldBox(ctrl: referralCtrl, label: 'Referral Code', hint: 'RIDER-XXXX'),
+              ],
+              const SizedBox(height: 20),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: agreedToTerms,
+                        onChanged: (v) => onToggleTerms(v ?? false),
+                        activeColor: AppColors.accent,
+                        side: errors['terms'] != null
+                            ? BorderSide(color: Colors.red.shade400, width: 1.5)
+                            : null,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text.rich(
+                            TextSpan(
+                              text: 'I agree to the ',
+                              style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary),
+                              children: [
+                                TextSpan(text: 'Terms of Service', style: GoogleFonts.inter(color: AppColors.accent, fontWeight: FontWeight.w500)),
+                                const TextSpan(text: ' and '),
+                                TextSpan(text: 'Privacy Policy', style: GoogleFonts.inter(color: AppColors.accent, fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (errors['terms'] != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 12, top: 2),
+                      child: Text(errors['terms']!,
+                          style: GoogleFonts.inter(fontSize: 11, color: Colors.red.shade400)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 60),
             ],
           ),
-          const SizedBox(height: 60),
-        ],
-      ),
         ),
       ),
     );
@@ -339,12 +390,14 @@ class _Step2 extends StatelessWidget {
   final String vehicleType;
   final TextEditingController licenseCtrl, plateCtrl;
   final String? licenseFileName, vehicleFileName;
+  final Map<String, String?> errors;
   final ValueChanged<String> onVehicleType;
   final VoidCallback onPickLicense, onPickVehicle;
 
   const _Step2({
     required this.vehicleType, required this.licenseCtrl, required this.plateCtrl,
     required this.licenseFileName, required this.vehicleFileName,
+    required this.errors,
     required this.onVehicleType, required this.onPickLicense, required this.onPickVehicle,
   });
 
@@ -360,46 +413,38 @@ class _Step2 extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          const SizedBox(height: 4),
-          Text('Vehicle Type', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(child: _VehicleChip(
-                label: 'Motorcycle', icon: Icons.motorcycle_rounded,
-                selected: vehicleType == 'MOTORCYCLE', onTap: () => onVehicleType('MOTORCYCLE'),
-              )),
-              const SizedBox(width: 12),
-              Expanded(child: _VehicleChip(
-                label: 'Bicycle', icon: Icons.directions_bike_rounded,
-                selected: vehicleType == 'BICYCLE', onTap: () => onVehicleType('BICYCLE'),
-              )),
-            ],
-          ),
-          if (!_isBicycle) ...[
-            const SizedBox(height: 16),
-            _FieldBox(ctrl: licenseCtrl, label: 'License Number', hint: 'e.g. LIC-2024-XXXXX'),
-            const SizedBox(height: 12),
-            _FieldBox(ctrl: plateCtrl, label: 'Vehicle Plate', hint: 'e.g. ABC-123-XY'),
-            const SizedBox(height: 24),
-            Text("Documents", style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-            const SizedBox(height: 4),
-            Text("Upload clear photos of your documents",
-                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
-            const SizedBox(height: 14),
-            _UploadCard(
-              label: "Driver's License",
-              fileName: licenseFileName,
-              onTap: onPickLicense,
-            ),
-            const SizedBox(height: 10),
-            _UploadCard(
-              label: 'Vehicle Registration',
-              fileName: vehicleFileName,
-              onTap: onPickVehicle,
-            ),
-          ],
-          const SizedBox(height: 60),
+              const SizedBox(height: 4),
+              Text('Vehicle Type', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _VehicleChip(
+                    label: 'Motorcycle', icon: Icons.motorcycle_rounded,
+                    selected: vehicleType == 'MOTORCYCLE', onTap: () => onVehicleType('MOTORCYCLE'),
+                  )),
+                  const SizedBox(width: 12),
+                  Expanded(child: _VehicleChip(
+                    label: 'Bicycle', icon: Icons.directions_bike_rounded,
+                    selected: vehicleType == 'BICYCLE', onTap: () => onVehicleType('BICYCLE'),
+                  )),
+                ],
+              ),
+              if (!_isBicycle) ...[
+                const SizedBox(height: 16),
+                _FieldBox(ctrl: licenseCtrl, label: 'License Number', hint: 'e.g. LIC-2024-XXXXX', error: errors['license']),
+                const SizedBox(height: 12),
+                _FieldBox(ctrl: plateCtrl, label: 'Vehicle Plate', hint: 'e.g. ABC-123-XY', error: errors['plate']),
+                const SizedBox(height: 24),
+                Text('Documents', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                const SizedBox(height: 4),
+                Text('Upload clear photos of your documents',
+                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
+                const SizedBox(height: 14),
+                _UploadCard(label: "Driver's License", fileName: licenseFileName, onTap: onPickLicense),
+                const SizedBox(height: 10),
+                _UploadCard(label: 'Vehicle Registration', fileName: vehicleFileName, onTap: onPickVehicle),
+              ],
+              const SizedBox(height: 60),
             ],
           ),
         ),
@@ -412,12 +457,16 @@ class _FieldBox extends StatelessWidget {
   final TextEditingController ctrl;
   final String label, hint;
   final TextInputType type;
+  final String? error;
 
-  const _FieldBox({required this.ctrl, required this.label, required this.hint, this.type = TextInputType.text});
+  const _FieldBox({required this.ctrl, required this.label, required this.hint,
+      this.type = TextInputType.text, this.error});
 
   @override
   Widget build(BuildContext context) {
-    return TextField(autocorrect: false, enableSuggestions: false, 
+    return TextField(
+      autocorrect: false,
+      enableSuggestions: false,
       controller: ctrl,
       keyboardType: type,
       style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary),
@@ -428,6 +477,12 @@ class _FieldBox extends StatelessWidget {
         filled: true, fillColor: AppColors.bgPrimary,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: error != null ? BorderSide(color: Colors.red.shade400, width: 1.5) : BorderSide.none,
+        ),
+        errorText: error,
+        errorStyle: GoogleFonts.inter(fontSize: 11, color: Colors.red.shade400),
       ),
     );
   }

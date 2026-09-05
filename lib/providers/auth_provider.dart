@@ -96,17 +96,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String vehicleType,
     String? referralCode,
   }) async {
-    await _authService.registerRider(
-      firstName: firstName,
-      surname: surname,
-      email: email,
-      phone: phone,
-      password: password,
-      vehicleType: vehicleType,
-      referralCode: referralCode,
-    );
-    final user = await _authService.getMe();
-    state = AuthState.authenticated(user);
+    try {
+      await _authService.registerRider(
+        firstName: firstName,
+        surname: surname,
+        email: email,
+        phone: phone,
+        password: password,
+        vehicleType: vehicleType,
+        referralCode: referralCode,
+      );
+      final user = await _authService.getMe();
+      state = AuthState.authenticated(user);
+    } catch (e) {
+      state = AuthState.unauthenticated(e.toString().replaceFirst('ApiException(400): ', '').replaceFirst('ApiException(422): ', ''));
+    }
   }
 
   Future<void> registerBusiness({
