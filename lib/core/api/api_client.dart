@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../constants/app_identity.dart';
 import 'token_storage.dart';
 import 'api_exception.dart';
 
@@ -17,13 +18,17 @@ class ApiClient {
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 30),
+      headers: {AppIdentity.header: AppIdentity.appId},
     ));
 
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 30),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        AppIdentity.header: AppIdentity.appId,
+      },
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(

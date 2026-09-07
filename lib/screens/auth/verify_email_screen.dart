@@ -28,8 +28,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
 
   @override
   void dispose() {
-    for (final c in _ctrls) c.dispose();
-    for (final n in _nodes) n.dispose();
+    for (final c in _ctrls) {
+      c.dispose();
+    }
+    for (final n in _nodes) {
+      n.dispose();
+    }
     _cooldownTimer?.cancel();
     super.dispose();
   }
@@ -252,7 +256,7 @@ class _OtpBox extends StatelessWidget {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: hasError
-                  ? BorderSide(color: AppColors.error, width: 1.5)
+                  ? const BorderSide(color: AppColors.error, width: 1.5)
                   : controller.text.isNotEmpty
                       ? const BorderSide(color: AppColors.accent, width: 1.5)
                       : BorderSide.none,
